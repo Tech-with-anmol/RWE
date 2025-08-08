@@ -17,7 +17,7 @@ coverage/
 
 package-lock.json
 bun.lock
-
+public
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
