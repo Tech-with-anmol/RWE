@@ -21,6 +21,19 @@ function App() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isTopicDialogOpen, setIsTopicDialogOpen] = React.useState(false);
 
+ 
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        setIsTopicDialogOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
