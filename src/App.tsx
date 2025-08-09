@@ -9,6 +9,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
+import { Button } from "./components/ui/button";
+import { MessageSquarePlus } from "lucide-react";
+import { TopicDialog } from "./components/topic-dialog";
 
 
 function App() {
@@ -16,6 +19,7 @@ function App() {
   const [message, setMessage] = React.useState("");
   const [conversation, setConversation] = React.useState<Array<{role: string, content: string}>>([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isTopicDialogOpen, setIsTopicDialogOpen] = React.useState(false);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Tab") {
@@ -75,8 +79,10 @@ function App() {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       sendMessage();
-    }
+    } 
   };
+
+  
 
 
   return (
@@ -93,6 +99,9 @@ function App() {
                   <TabsTrigger value="summary">Summary</TabsTrigger>
                   <TabsTrigger value="ai">AI</TabsTrigger>
                 </TabsList>
+                <Button variant="outline" size="sm" className="ml-auto" onClick={() => setIsTopicDialogOpen(true)}>
+                  <MessageSquarePlus/> New Topic
+                </Button>
               </div>
               <TabsContent value="notes" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
                 <Textarea
@@ -226,6 +235,10 @@ function App() {
             </Tabs>
           </div>
         </SidebarInset>
+        <TopicDialog 
+          open={isTopicDialogOpen} 
+          onOpenChange={setIsTopicDialogOpen}
+        />
       </SidebarProvider>
     </ThemeProvider>
   );
