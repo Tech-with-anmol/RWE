@@ -12,7 +12,7 @@ import 'highlight.js/styles/github-dark.css';
 import { Button } from "./components/ui/button";
 import { MessageSquarePlus } from "lucide-react";
 import { TopicDialog } from "./components/topic-dialog";
-
+import { register } from "@tauri-apps/plugin-global-shortcut";
 
 function App() {
   const editorRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -20,6 +20,28 @@ function App() {
   const [conversation, setConversation] = React.useState<Array<{role: string, content: string}>>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isTopicDialogOpen, setIsTopicDialogOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const registerShortcut = async () => {
+      try {
+        if (typeof window !== 'undefined' && '__TAURI__' in window) {
+          console.log("Registering global shortcut...");
+          await register("CommandOrControl+Shift+n", () => {
+            console.log("Global shortcut triggered!");
+            setIsTopicDialogOpen(true);
+          });
+          console.log("Global shortcut registered successfully");
+        } else {
+          console.log("Not in Tauri environment");
+        }
+      } catch (error) {
+        console.error("Failed to register shortcut:", error);
+      }
+    };
+
+    registerShortcut();
+  }, []);
+  
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Tab") {
@@ -82,7 +104,7 @@ function App() {
     } 
   };
 
-  
+
 
 
   return (
