@@ -23,9 +23,6 @@
   "plugins": {
     "sql": {
       "preload": ["sqlite:main.db"]
-    },
-    "http": {
-      "scope": ["https://api.duckduckgo.com/*", "https://duckduckgo.com/*", "https://ai.hackclub.com/*"]
     }
   },
   "bundle": {

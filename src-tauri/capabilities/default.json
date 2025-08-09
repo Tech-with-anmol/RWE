@@ -14,6 +14,16 @@
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
-    "sql:allow-close"
+    "sql:allow-close",
+    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.duckduckgo.com/*" },
+        { "url": "https://duckduckgo.com/*" },
+        { "url": "https://ai.hackclub.com/*" }
+      ]
+    }
+
   ]
 }

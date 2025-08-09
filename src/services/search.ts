@@ -40,10 +40,7 @@ async function searchWithDuckDuckGo(term: string): Promise<SearchResult | null> 
   try {
     const encodedTerm = encodeURIComponent(term);
     const response = await fetch(`https://api.duckduckgo.com/?q=${encodedTerm}&format=json&no_redirect=1&no_html=1&skip_disambig=1`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'RWE-App/1.0',
-      },
+        method: 'GET',
     });
     
     if (!response.ok) return null;
