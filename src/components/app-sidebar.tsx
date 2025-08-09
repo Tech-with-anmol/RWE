@@ -1,4 +1,4 @@
-import { HandHelpingIcon, HelpCircle, Home, Search, Settings, MoreHorizontal } from "lucide-react"
+import { HandHelpingIcon, HelpCircle, Home, Search, Settings, MoreHorizontal, MessageSquare } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
@@ -11,6 +11,9 @@ import {
   SidebarMenuItem,
   SidebarMenuAction,
 } from "@/components/ui/sidebar"
+import { deleteConversation, type Conversation } from "./load-data"
+import { getConversations, invalidateConversationCache } from "../services/cache"
+import * as React from "react"
 
 
 const items = [
@@ -41,7 +44,49 @@ const items = [
   },
 ]
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  onConversationSelect?: (conversationId: number) => void;
+  currentConversationId?: number | null;
+  refreshTrigger?: number;
+  isDbReady?: boolean;
+}
+
+export function AppSidebar({ onConversationSelect, currentConversationId, refreshTrigger, isDbReady }: AppSidebarProps) {
+  const [conversations, setConversations] = React.useState<Conversation[]>([]);
+
+  const loadConversations = React.useCallback(async () => {
+    if (!isDbReady) return;
+    
+    try {
+      const convos = await getConversations();
+      setConversations(convos);
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+    }
+  }, [isDbReady]);
+
+  React.useEffect(() => {
+    if (isDbReady) {
+      loadConversations();
+    }
+  }, [loadConversations, refreshTrigger, isDbReady]);
+
+  React.useEffect(() => {
+    if (!isDbReady) return;
+    
+    const interval = setInterval(loadConversations, 2000);
+    return () => clearInterval(interval);
+  }, [loadConversations, isDbReady]);
+
+  const handleDeleteConversation = React.useCallback(async (conversationId: number) => {
+    try {
+      await deleteConversation(conversationId);
+      invalidateConversationCache();
+      await loadConversations();
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+    }
+  }, [loadConversations]);
   return (
     <Sidebar>
       <SidebarContent>
@@ -65,29 +110,48 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarMenuItem>
-         <SidebarMenuButton asChild>
-           <a href="#">
-             <span >Topic name</span>
-           </a>
-      
-         </SidebarMenuButton>
-         <DropdownMenu>
-           <DropdownMenuTrigger asChild>
-             <SidebarMenuAction>
-               <MoreHorizontal />
-             </SidebarMenuAction>
-           </DropdownMenuTrigger>
-           <DropdownMenuContent side="right" align="start">
-             <DropdownMenuItem>
-               <span>Edit Name</span>
-             </DropdownMenuItem>
-             <DropdownMenuItem>
-               <span>Delete</span>
-             </DropdownMenuItem>
-           </DropdownMenuContent>
-         </DropdownMenu>
-        </SidebarMenuItem>
+        
+        <SidebarGroup>
+          <SidebarGroupLabel>Conversations</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {conversations.map((conversation) => (
+                <SidebarMenuItem key={conversation.id}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={currentConversationId === conversation.id}
+                  >
+                    <button 
+                      onClick={() => onConversationSelect?.(conversation.id)}
+                      className="w-full"
+                    >
+                      <MessageSquare />
+                      <span className="truncate">{conversation.name}</span>
+                    </button>
+                  </SidebarMenuButton>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <SidebarMenuAction>
+                        <MoreHorizontal />
+                      </SidebarMenuAction>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="right" align="start">
+                      <DropdownMenuItem>
+                        <span>Edit Name</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteConversation(conversation.id)}
+                        className="text-destructive"
+                      >
+                        <span>Delete</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   )

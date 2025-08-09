@@ -12,16 +12,21 @@ import * as React from "react";
 interface TopicDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onCreateConversation?: (name: string, summary: string) => Promise<void>;
 }
 
-export function TopicDialog({ open, onOpenChange }: TopicDialogProps) {
+export function TopicDialog({ open, onOpenChange, onCreateConversation }: TopicDialogProps) {
     const [topicName, setTopicName] = React.useState("");
 
-    const handleSubmit = () => {
-        if (topicName.trim()) {
-            console.log("Creating topic:", topicName);
-            setTopicName("");
-            onOpenChange(false);
+    const handleSubmit = async () => {
+        if (topicName.trim() && onCreateConversation) {
+            try {
+                await onCreateConversation(topicName.trim(), `Conversation about ${topicName.trim()}`);
+                setTopicName("");
+                onOpenChange(false);
+            } catch (error) {
+                console.error("Failed to create conversation:", error);
+            }
         }
     };
 
@@ -61,4 +66,3 @@ export function TopicDialog({ open, onOpenChange }: TopicDialogProps) {
         </Dialog>
     );
 }
-    
