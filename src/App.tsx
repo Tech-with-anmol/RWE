@@ -64,26 +64,38 @@ function App() {
         await initDatabase();
         setIsDbInitialized(true);
       } catch (error) {
-        
+        console.error("Database initialization failed:", error);
+        setTimeout(() => {
+          initDb();
+        }, 2000);
       }
     };
-    initDb();
-  }, []);
+    if (!isDbInitialized) {
+      initDb();
+    }
+  }, [isDbInitialized]);
+
+  const saveCurrentNotes = React.useCallback(async () => {
+    if (!isDbInitialized || !currentConversationId) return;
+    
+    try {
+      await updateConversationNotes(currentConversationId, notes);
+      if (currentConversation) {
+        const updatedConv = { ...currentConversation, notes };
+        setCurrentConversation(updatedConv);
+        updateConversationCache(updatedConv);
+      }
+    } catch (error) {
+      console.error("Failed to save notes:", error);
+    }
+  }, [isDbInitialized, currentConversationId, notes, currentConversation]);
 
   React.useEffect(() => {
-    if (!isDbInitialized || !currentConversationId || !notes) return;
+    if (!isDbInitialized || !currentConversationId) return;
     
-    const saveNotes = async () => {
-      try {
-        await updateConversationNotes(currentConversationId, notes);
-      } catch (error) {
-        
-      }
-    };
-
-    const timeoutId = setTimeout(saveNotes, 1000);
+    const timeoutId = setTimeout(saveCurrentNotes, 1000);
     return () => clearTimeout(timeoutId);
-  }, [notes, currentConversationId, isDbInitialized]);
+  }, [notes, currentConversationId, isDbInitialized, saveCurrentNotes]);
 
   const createNewConversation = React.useCallback(async (name: string, summary: string) => {
     if (!isDbInitialized) return;
@@ -119,6 +131,10 @@ function App() {
     }
     
     try {
+      if (currentConversationId && notes) {
+        await saveCurrentNotes();
+      }
+      
       setCurrentConversationId(conversationId);
       setConversation([]);
       setSearchResults([]);
@@ -151,7 +167,7 @@ function App() {
       setCurrentConversation(null);
       setConversation([]);
     }
-  }, [isDbInitialized, currentConversationId]);
+  }, [isDbInitialized, currentConversationId, notes, saveCurrentNotes]);
 
   const extractSearchTerms = React.useCallback(async (conversationText: string): Promise<string[]> => {
     const cleanText = conversationText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
@@ -455,6 +471,28 @@ Based on the above web search results, please provide a comprehensive answer tha
     }
   }, [message, isLoading, isDbInitialized, conversation, currentConversationId, webSearchEnabled, extractSearchTerms, performWebSearchWithLinks]);
 
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && currentConversationId && notes) {
+        saveCurrentNotes();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentConversationId, notes, saveCurrentNotes]);
+
+  React.useEffect(() => {
+    return () => {
+      if (currentConversationId && notes) {
+        updateConversationNotes(currentConversationId, notes).catch(console.error);
+      }
+    };
+  }, [currentConversationId, notes]);
+
   const handleKeyPress = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -584,7 +622,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                 </div>
               </TabsContent>
               <TabsContent value="graph" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
-                <MindMap />
+                <MindMap currentConversationId={currentConversationId} />
               </TabsContent>
               <TabsContent value="ai" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
                 <div className="flex h-full overflow-hidden">

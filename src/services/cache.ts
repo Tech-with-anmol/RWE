@@ -17,15 +17,20 @@ export async function getConversations(): Promise<Conversation[]> {
     return conversationListCache.data;
   }
   
-  const conversations = await dbGetConversations();
-  conversationListCache.data = conversations;
-  conversationListCache.timestamp = Date.now();
-  
-  conversations.forEach(conv => {
-    conversationCache.set(conv.id, conv);
-  });
-  
-  return conversations;
+  try {
+    const conversations = await dbGetConversations();
+    conversationListCache.data = conversations;
+    conversationListCache.timestamp = Date.now();
+    
+    conversations.forEach(conv => {
+      conversationCache.set(conv.id, conv);
+    });
+    
+    return conversations;
+  } catch (error) {
+    console.error("Cache: Failed to get conversations:", error);
+    return conversationListCache.data || [];
+  }
 }
 
 export async function getConversation(id: number): Promise<Conversation | null> {
@@ -33,12 +38,17 @@ export async function getConversation(id: number): Promise<Conversation | null> 
     return conversationCache.get(id)!;
   }
   
-  const conversation = await dbGetConversation(id);
-  if (conversation) {
-    conversationCache.set(id, conversation);
+  try {
+    const conversation = await dbGetConversation(id);
+    if (conversation) {
+      conversationCache.set(id, conversation);
+    }
+    
+    return conversation;
+  } catch (error) {
+    console.error("Cache: Failed to get conversation:", error);
+    return null;
   }
-  
-  return conversation;
 }
 
 export async function getMessages(conversationId: number): Promise<Message[]> {
@@ -46,10 +56,15 @@ export async function getMessages(conversationId: number): Promise<Message[]> {
     return messageCache.get(conversationId)!;
   }
   
-  const messages = await dbGetMessages(conversationId);
-  messageCache.set(conversationId, messages);
-  
-  return messages;
+  try {
+    const messages = await dbGetMessages(conversationId);
+    messageCache.set(conversationId, messages);
+    
+    return messages;
+  } catch (error) {
+    console.error("Cache: Failed to get messages:", error);
+    return [];
+  }
 }
 
 export function invalidateConversationCache(): void {

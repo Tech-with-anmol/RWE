@@ -16,10 +16,43 @@ export interface Message {
     seq: number;
 }
 
+export interface MindMapData {
+    id: number;
+    conversation_id: number;
+    title: string;
+    nodes: string;
+    connections: string;
+    theme: string;
+    created_at: string;
+    updated_at: string;
+}
+
 let conversationDb: Database | null = null;
 let messageDb: Database | null = null;
+let isInitializing = false;
+let initPromise: Promise<void> | null = null;
 
 export async function initDatabase() {
+    if (conversationDb && messageDb) {
+        return;
+    }
+    
+    if (isInitializing && initPromise) {
+        return initPromise;
+    }
+    
+    isInitializing = true;
+    initPromise = performInit();
+    
+    try {
+        await initPromise;
+    } finally {
+        isInitializing = false;
+        initPromise = null;
+    }
+}
+
+async function performInit() {
     try {
         const mainDb = await Database.load("sqlite:main.db");
         conversationDb = mainDb;
@@ -45,6 +78,21 @@ export async function initDatabase() {
         await messageDb.execute(`CREATE INDEX IF NOT EXISTS idx_messages_conversation_seq 
                                 ON messages(conversation_id, seq);`);
 
+        await conversationDb.execute(`CREATE TABLE IF NOT EXISTS mindmaps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            nodes TEXT NOT NULL DEFAULT '[]',
+            connections TEXT NOT NULL DEFAULT '[]',
+            theme TEXT NOT NULL DEFAULT 'terminal',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+        );`);
+
+        await conversationDb.execute(`CREATE INDEX IF NOT EXISTS idx_mindmaps_conversation 
+                                ON mindmaps(conversation_id);`);
+
         const convCheck = await conversationDb.select("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'") as any[];
         const msgCheck = await messageDb.select("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'") as any[];
         
@@ -53,6 +101,8 @@ export async function initDatabase() {
         }
     } catch (error) {
         console.error("Failed to initialize database:", error);
+        conversationDb = null;
+        messageDb = null;
         throw error;
     }
 }
@@ -71,7 +121,9 @@ export async function createConversation(name: string, summary: string, notes?: 
 }
 
 export async function getConversations(): Promise<Conversation[]> {
-    if (!conversationDb) throw new Error("Conversation database not initialized");
+    if (!conversationDb) {
+        return [];
+    }
     
     try {
         const result = await conversationDb.select<Conversation[]>(
@@ -153,7 +205,46 @@ export async function deleteConversation(conversationId: number): Promise<void> 
     if (!conversationDb || !messageDb) throw new Error("Database not initialized");
     
     await messageDb.execute("DELETE FROM messages WHERE conversation_id = ?", [conversationId]);
+    await conversationDb.execute("DELETE FROM mindmaps WHERE conversation_id = ?", [conversationId]);
     await conversationDb.execute("DELETE FROM conversations WHERE id = ?", [conversationId]);
+}
+
+export async function saveMindMap(conversationId: number, title: string, nodes: any[], connections: any[], theme: string): Promise<void> {
+    if (!conversationDb) throw new Error("Database not initialized");
+    
+    const nodesJson = JSON.stringify(nodes);
+    const connectionsJson = JSON.stringify(connections);
+    
+    const existing = await conversationDb.select<MindMapData[]>(
+        "SELECT id FROM mindmaps WHERE conversation_id = ?",
+        [conversationId]
+    );
+    
+    if (existing.length > 0) {
+        await conversationDb.execute(
+            "UPDATE mindmaps SET title = ?, nodes = ?, connections = ?, theme = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+            [title, nodesJson, connectionsJson, theme, conversationId]
+        );
+    } else {
+        await conversationDb.execute(
+            "INSERT INTO mindmaps (conversation_id, title, nodes, connections, theme) VALUES (?, ?, ?, ?, ?)",
+            [conversationId, title, nodesJson, connectionsJson, theme]
+        );
+    }
+}
+
+export async function getMindMap(conversationId: number): Promise<MindMapData | null> {
+    if (!conversationDb) throw new Error("Database not initialized");
+    
+    try {
+        const result = await conversationDb.select<MindMapData[]>(
+            "SELECT * FROM mindmaps WHERE conversation_id = ?",
+            [conversationId]
+        );
+        return result[0] || null;
+    } catch (error) {
+        return null;
+    }
 }
 
 export async function loadData() {

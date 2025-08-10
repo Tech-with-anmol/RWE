@@ -53,32 +53,43 @@ interface AppSidebarProps {
 
 export function AppSidebar({ onConversationSelect, currentConversationId, refreshTrigger, isDbReady }: AppSidebarProps) {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const loadConversations = React.useCallback(async () => {
-    if (!isDbReady) return;
+    if (!isDbReady || isLoading) return;
     
+    setIsLoading(true);
     try {
       const convos = await getConversations();
       setConversations(convos);
     } catch (error) {
       console.error("Failed to load conversations:", error);
+      setConversations([]);
+    } finally {
+      setIsLoading(false);
     }
-  }, [isDbReady]);
+  }, [isDbReady, isLoading]);
 
   React.useEffect(() => {
-    if (isDbReady) {
+    if (isDbReady && !isLoading) {
       loadConversations();
     }
-  }, [loadConversations, refreshTrigger, isDbReady]);
+  }, [refreshTrigger, isDbReady]);
 
   React.useEffect(() => {
     if (!isDbReady) return;
     
-    const interval = setInterval(loadConversations, 2000);
+    const interval = setInterval(() => {
+      if (isDbReady && !isLoading) {
+        loadConversations();
+      }
+    }, 3000);
     return () => clearInterval(interval);
-  }, [loadConversations, isDbReady]);
+  }, [isDbReady, isLoading]);
 
   const handleDeleteConversation = React.useCallback(async (conversationId: number) => {
+    if (!isDbReady) return;
+    
     try {
       await deleteConversation(conversationId);
       invalidateConversationCache();
@@ -86,7 +97,7 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
     } catch (error) {
       console.error("Failed to delete conversation:", error);
     }
-  }, [loadConversations]);
+  }, [loadConversations, isDbReady]);
   return (
     <Sidebar>
       <SidebarContent>
@@ -115,40 +126,55 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
           <SidebarGroupLabel>Conversations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {conversations.map((conversation) => (
-                <SidebarMenuItem key={conversation.id}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={currentConversationId === conversation.id}
-                  >
-                    <button 
-                      onClick={() => onConversationSelect?.(conversation.id)}
-                      className="w-full"
-                    >
-                      <MessageSquare />
-                      <span className="truncate">{conversation.name}</span>
-                    </button>
-                  </SidebarMenuButton>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction>
-                        <MoreHorizontal />
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="right" align="start">
-                      <DropdownMenuItem>
-                        <span>Edit Name</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => handleDeleteConversation(conversation.id)}
-                        className="text-destructive"
-                      >
-                        <span>Delete</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+              {!isDbReady ? (
+                <SidebarMenuItem>
+                  <div className="flex items-center gap-2 px-2 py-1 text-sm text-muted-foreground">
+                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                    Initializing database...
+                  </div>
                 </SidebarMenuItem>
-              ))}
+              ) : conversations.length === 0 ? (
+                <SidebarMenuItem>
+                  <div className="px-2 py-1 text-sm text-muted-foreground">
+                    No conversations yet. Create a new topic to get started.
+                  </div>
+                </SidebarMenuItem>
+              ) : (
+                conversations.map((conversation) => (
+                  <SidebarMenuItem key={conversation.id}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={currentConversationId === conversation.id}
+                    >
+                      <button 
+                        onClick={() => onConversationSelect?.(conversation.id)}
+                        className="w-full"
+                      >
+                        <MessageSquare />
+                        <span className="truncate">{conversation.name}</span>
+                      </button>
+                    </SidebarMenuButton>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <SidebarMenuAction>
+                          <MoreHorizontal />
+                        </SidebarMenuAction>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="right" align="start">
+                        <DropdownMenuItem>
+                          <span>Edit Name</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteConversation(conversation.id)}
+                          className="text-destructive"
+                        >
+                          <span>Delete</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </SidebarMenuItem>
+                ))
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
