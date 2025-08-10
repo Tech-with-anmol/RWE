@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkEmoji from 'remark-emoji';
 import rehypeHighlight from 'rehype-highlight';
 
 interface OptimizedMarkdownProps {
@@ -68,7 +69,7 @@ const markdownComponents = {
 export const OptimizedMarkdown = React.memo<OptimizedMarkdownProps>(({ content }) => {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkEmoji]}
       rehypePlugins={[rehypeHighlight]}
       components={markdownComponents}
     >

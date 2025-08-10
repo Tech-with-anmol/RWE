@@ -10,6 +10,8 @@ import { Button } from "./components/ui/button";
 import { MessageSquarePlus, Globe, Search, Brain } from "lucide-react";
 import { TopicDialog } from "./components/topic-dialog";
 import { OptimizedMarkdown } from "./components/optimized-markdown";
+import { MindMap } from "./components/mind-map";
+import { ToggleGroup, ToggleGroupItem } from "./components/ui/toggle-group";
 import { 
   initDatabase, 
   createConversation, 
@@ -45,6 +47,7 @@ function App() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = React.useState(false);
   const [thinkingEnabled, setThinkingEnabled] = React.useState(false);
+  const [notesViewMode, setNotesViewMode] = React.useState<'edit' | 'split' | 'preview'>('split');
 
   React.useEffect(() => {
     if (chatScrollRef.current && conversation.length > 0) {
@@ -60,9 +63,8 @@ function App() {
       try {
         await initDatabase();
         setIsDbInitialized(true);
-        console.log("Database ready");
       } catch (error) {
-        console.error("Failed to initialize database:", error);
+        
       }
     };
     initDb();
@@ -75,7 +77,7 @@ function App() {
       try {
         await updateConversationNotes(currentConversationId, notes);
       } catch (error) {
-        console.error("Failed to save notes:", error);
+        
       }
     };
 
@@ -103,7 +105,7 @@ function App() {
       }
       invalidateConversationCache();
     } catch (error) {
-      console.error("Failed to create conversation:", error);
+      
     }
   }, [isDbInitialized]);
 
@@ -145,7 +147,6 @@ function App() {
         });
       }
     } catch (error) {
-      console.error("Failed to load conversation messages:", error);
       setCurrentConversationId(null);
       setCurrentConversation(null);
       setConversation([]);
@@ -224,7 +225,6 @@ function App() {
     try {
       return await performWebSearch(searchTerms);
     } catch (error) {
-      console.error("Web search failed:", error);
       return [];
     }
   }, []);
@@ -300,7 +300,7 @@ Provide detailed analysis and insights about this topic.`;
       setCurrentConversation(updatedConv);
       updateConversationCache(updatedConv);
     } catch (error) {
-      console.error("Failed to generate summary:", error);
+      
     } finally {
       setGeneratingSummary(false);
     }
@@ -313,7 +313,7 @@ Provide detailed analysis and insights about this topic.`;
         e.preventDefault();
         setIsTopicDialogOpen(true);
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'B' && e.shiftKey) {
         e.preventDefault();
         setThinkingEnabled(!thinkingEnabled);
       }
@@ -360,7 +360,7 @@ Provide detailed analysis and insights about this topic.`;
         await saveMessage(currentConversationId, 'user', userMessage.content);
         invalidateMessageCache(currentConversationId);
       } catch (error) {
-        console.error("Failed to save user message:", error);
+        
       }
     }
 
@@ -371,9 +371,7 @@ Provide detailed analysis and insights about this topic.`;
       if (webSearchEnabled) {
         setIsSearching(true);
         const searchTerms = await extractSearchTerms(userMessage.content);
-        console.log("Extracted search terms:", searchTerms);
         webSearchResults = await performWebSearchWithLinks(searchTerms);
-        console.log("Web search results:", webSearchResults);
         setSearchResults(webSearchResults);
         setIsSearching(false);
 
@@ -419,8 +417,6 @@ Based on the above web search results, please provide a comprehensive answer tha
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API Error:", response.status, errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -435,11 +431,10 @@ Based on the above web search results, please provide a comprehensive answer tha
           await saveMessage(currentConversationId, 'ai', cleanedContent);
           invalidateMessageCache(currentConversationId);
         } catch (error) {
-          console.error("Failed to save AI message:", error);
+          
         }
       }
     } catch (error) {
-      console.error("Error sending message:", error);
       
       let errorMessage = "Sorry, I encountered an error. Please try again.";
       if (error instanceof Error) {
@@ -488,22 +483,62 @@ Based on the above web search results, please provide a comprehensive answer tha
                   <TabsTrigger value="notes">Notes</TabsTrigger>
                   <TabsTrigger value="summary">Summary</TabsTrigger>
                   <TabsTrigger value="ai">AI</TabsTrigger>
+                  <TabsTrigger value="graph">Mind Map</TabsTrigger>
                 </TabsList>
                 <Button variant="outline" size="sm" className="ml-auto" onClick={() => setIsTopicDialogOpen(true)}>
                   <MessageSquarePlus/> New Topic
                 </Button>
               </div>
               <TabsContent value="notes" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
-                <Textarea
-                  ref={editorRef}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  autoFocus
-                  spellCheck={true}
-                  placeholder="Type your ideas here..."
-                  className="w-full h-full min-h-0 resize-none bg-transparent border-none rounded-none p-2 font-mono text-base leading-relaxed"
-                />
+                <div className="border-b border-neutral-200 dark:border-neutral-700 p-2 flex items-center justify-end">
+                  <ToggleGroup type="single" value={notesViewMode} onValueChange={(value) => value && setNotesViewMode(value as 'edit' | 'split' | 'preview')} variant="outline">
+                    <ToggleGroupItem value="edit" aria-label="Edit only">
+                      Edit
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="split" aria-label="Split view">
+                      Split
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                     value="preview"
+                     aria-label="Preview only"
+                     className="w-30"
+                     >
+                      Preview
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+                <div className="flex-1 flex overflow-hidden">
+                  {(notesViewMode === 'edit' || notesViewMode === 'split') && (
+                    <div className={`${notesViewMode === 'split' ? 'w-1/2' : 'w-full'} flex flex-col`}>
+                      <Textarea
+                        ref={editorRef}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        autoFocus
+                        spellCheck={true}
+                        placeholder="Type your ideas here..."
+                        className="w-full h-full min-h-0 resize-none bg-transparent border-none rounded-none p-2 font-mono text-base leading-relaxed"
+                      />
+                    </div>
+                  )}
+                  {notesViewMode === 'split' && (
+                    <div className="w-px bg-neutral-200 dark:bg-neutral-700"></div>
+                  )}
+                  {(notesViewMode === 'preview' || notesViewMode === 'split') && (
+                    <div className={`${notesViewMode === 'split' ? 'w-1/2' : 'w-full'} overflow-y-auto p-4`}>
+                      {notes ? (
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <OptimizedMarkdown content={notes} />
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground italic">
+                          Start typing to see markdown preview...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </TabsContent>
               <TabsContent value="summary" className="flex-1 overflow-hidden p-4 m-0">
                 <div className="h-full overflow-y-auto">
@@ -547,6 +582,9 @@ Based on the above web search results, please provide a comprehensive answer tha
                     </div>
                   )}
                 </div>
+              </TabsContent>
+              <TabsContent value="graph" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
+                <MindMap />
               </TabsContent>
               <TabsContent value="ai" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
                 <div className="flex h-full overflow-hidden">
@@ -618,10 +656,10 @@ Based on the above web search results, please provide a comprehensive answer tha
                           Deep Thinking
                         </Button>
                         <div className="text-xs text-muted-foreground ml-auto">
-                          {webSearchEnabled && thinkingEnabled && "Deep reasoning + Web search enabled • Ctrl+W/B"}
+                          {webSearchEnabled && thinkingEnabled && "Deep reasoning + Web search enabled • Ctrl+W/Shift+Ctrl+B"}
                           {webSearchEnabled && !thinkingEnabled && "Web search enabled • Ctrl+W"}
-                          {!webSearchEnabled && thinkingEnabled && "Enhanced • Deep reasoning • Ctrl+B"}
-                          {!webSearchEnabled && !thinkingEnabled && "Standard mode • Ctrl+W/B"}
+                          {!webSearchEnabled && thinkingEnabled && "Enhanced • Deep reasoning • Shift+Ctrl+B"}
+                          {!webSearchEnabled && !thinkingEnabled && "Standard mode • Ctrl+W/Shift+Ctrl+B"}
                         </div>
                       </div>
                       <div className="p-3">
