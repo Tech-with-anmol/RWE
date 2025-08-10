@@ -17,16 +17,16 @@
 }
 
 .dark {
-  --background: #121212;
-  --foreground: #e0e0e0;
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --background: #1a1a1a;
+  --foreground: #e5e5e5;
+  --sidebar: hsl(240 6% 18%);
+  --sidebar-foreground: hsl(240 5% 90%);
+  --sidebar-primary: hsl(224 65% 55%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar-accent: hsl(240 4% 22%);
+  --sidebar-accent-foreground: hsl(240 5% 88%);
+  --sidebar-border: hsl(240 4% 25%);
+  --sidebar-ring: hsl(217 85% 65%);
 }
 
 
@@ -34,6 +34,7 @@ body {
   background-color: var(--background);
   color: var(--foreground);
 }
+
 .container {
   @apply flex flex-col items-center justify-center min-h-screen p-4;
 }

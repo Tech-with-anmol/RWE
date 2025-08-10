@@ -18,7 +18,7 @@ import {
   updateConversationSummary,
   type Conversation
 } from "./components/load-data";
-import { performWebSearch, type SearchResult } from "./services/search";
+import { performWebSearch, type SearchResult, clearSearchCache } from "./services/search";
 import { 
   getConversation,
   getMessages,
@@ -93,6 +93,7 @@ function App() {
       setConversation([]);
       setNotes("");
       setSearchResults([]);
+      clearSearchCache(); 
       setRefreshSidebar(prev => prev + 1);
       
       const newConv = await getConversation(conversationId);
@@ -119,6 +120,7 @@ function App() {
       setCurrentConversationId(conversationId);
       setConversation([]);
       setSearchResults([]);
+      clearSearchCache(); 
       
       const [messages, conv] = await Promise.all([
         getMessages(conversationId),
@@ -151,37 +153,71 @@ function App() {
   }, [isDbInitialized, currentConversationId]);
 
   const extractSearchTerms = React.useCallback(async (conversationText: string): Promise<string[]> => {
-    try {
-      const response = await fetch("https://ai.hackclub.com/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [{
-            role: "user",
-            content: `Extract 3-5 key search terms from this conversation that would help find relevant additional information online. Return only the search terms, one per line, no explanations:
-
-${conversationText}`
-          }],
-          model: "qwen/qwen3-32b",
-          temperature: 0.1,
-          max_completion_tokens: 100,
-        }),
-      });
-      
-      if (!response.ok) return [];
-      
-      const data = await response.json();
-      return data.choices[0].message.content
-        .split('\n')
-        .map((term: string) => term.trim())
-        .filter((term: string) => term.length > 0)
-        .slice(0, 5);
-    } catch (error) {
-      console.error("Failed to extract search terms:", error);
-      return [];
+    const cleanText = conversationText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    const text = cleanText.trim();
+    
+    if (text.length < 3) {
+      return ['general'];
     }
+    
+    const lowerText = text.toLowerCase();
+    
+    const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now', 'what', 'who', 'which', 'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'a', 'an', 'as', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'them', 'their', 'what', 'this', 'that']);
+    
+    const terms: string[] = [];
+    
+    const patterns = [
+      /([a-zA-Z][a-zA-Z0-9\s]*(?:show|series|movie|film|season|episode|episode?\s*\d+|s\d+|e\d+)[a-zA-Z0-9\s]*)/gi,
+      /([a-zA-Z][a-zA-Z\s]+(?:season\s*\d+|episode\s*\d+|s\d+e\d+))/gi,
+      /(\b[a-zA-Z][a-zA-Z\s]{2,}(?:\s+(?:news|today|2024|2025|latest|current|update|breaking))\b)/gi,
+      /(\b(?:top|best|latest|new|current)\s+[a-zA-Z\s]{3,}\b)/gi,
+      /(\b[A-Z][a-zA-Z\s]{2,}\b)/g
+    ];
+    
+    patterns.forEach(pattern => {
+      const matches = text.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const cleaned = match.trim().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
+          if (cleaned.length > 3 && cleaned.length < 60) {
+            terms.push(cleaned);
+          }
+        });
+      }
+    });
+    
+    const words = lowerText
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => 
+        word.length > 2 && 
+        word.length < 25 && 
+        !stopWords.has(word) &&
+        !/^\d+$/.test(word)
+      );
+    
+    const phrases = [];
+    const textWords = text.split(/\s+/);
+    for (let i = 0; i < textWords.length - 2; i++) {
+      const phrase3 = `${textWords[i]} ${textWords[i + 1]} ${textWords[i + 2]}`.replace(/[^\w\s]/g, ' ').trim();
+      const phrase2 = `${textWords[i]} ${textWords[i + 1]}`.replace(/[^\w\s]/g, ' ').trim();
+      
+      if (phrase3.length > 8 && phrase3.length < 50) {
+        phrases.push(phrase3);
+      } else if (phrase2.length > 5 && phrase2.length < 40) {
+        phrases.push(phrase2);
+      }
+    }
+    
+    const importantWords = words.filter(word => 
+      word.length > 4 || 
+      /^(show|movie|film|news|season|episode|latest|today|current|new|best|top)$/.test(word)
+    );
+    
+    const allTerms = [...new Set([...terms, ...phrases.slice(0, 3), ...importantWords.slice(0, 4)])];
+    const finalTerms = allTerms.slice(0, 5);
+    
+    return finalTerms.length > 0 ? finalTerms : [text.slice(0, 30)];
   }, []);
 
   const performWebSearchWithLinks = React.useCallback(async (searchTerms: string[]): Promise<SearchResult[]> => {
@@ -335,7 +371,9 @@ Provide detailed analysis and insights about this topic.`;
       if (webSearchEnabled) {
         setIsSearching(true);
         const searchTerms = await extractSearchTerms(userMessage.content);
+        console.log("Extracted search terms:", searchTerms);
         webSearchResults = await performWebSearchWithLinks(searchTerms);
+        console.log("Web search results:", webSearchResults);
         setSearchResults(webSearchResults);
         setIsSearching(false);
 
@@ -349,7 +387,7 @@ ${i + 1}. **${r.term}**
    ${r.url ? `Source: ${r.url}` : ''}
 `).join('\n')}
 
-Based on the above web search results, please provide a comprehensive answer that incorporates this information.`;
+Based on the above web search results, please provide a comprehensive answer that incorporates this information. Cite sources when relevant.`;
 
           enhancedMessages = [
             ...newConversation.slice(0, -1),
@@ -361,13 +399,10 @@ Based on the above web search results, please provide a comprehensive answer tha
         }
       }
 
-      const systemMessage = webSearchEnabled && webSearchResults.length > 0 
-        ? { role: "system", content: "You have access to recent web search results. Please incorporate the information from these search results into your response and cite the sources when relevant. If asked about current events or recent information, use the provided search results." }
-        : null;
-
-      const messagesToSend = systemMessage 
-        ? [systemMessage, ...enhancedMessages]
-        : enhancedMessages;
+      let messagesToSend = enhancedMessages.map(msg => ({
+        role: msg.role === "user" ? "user" as const : "assistant" as const,
+        content: msg.content
+      }));
 
       const response = await fetch("https://ai.hackclub.com/chat/completions", {
         method: "POST",
@@ -384,16 +419,20 @@ Based on the above web search results, please provide a comprehensive answer tha
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error:", response.status, errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      const aiMessage = { role: "assistant", content: data.choices[0].message.content };
+      const aiContent = data.choices[0].message.content;
+      const cleanedContent = aiContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      const aiMessage = { role: "assistant", content: cleanedContent };
       setConversation([...newConversation, aiMessage]);
 
       if (currentConversationId) {
         try {
-          await saveMessage(currentConversationId, 'ai', aiMessage.content);
+          await saveMessage(currentConversationId, 'ai', cleanedContent);
           invalidateMessageCache(currentConversationId);
         } catch (error) {
           console.error("Failed to save AI message:", error);
@@ -401,13 +440,25 @@ Based on the above web search results, please provide a comprehensive answer tha
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      const errorMessage = { role: "assistant", content: "Sorry, I encountered an error. Please try again." };
-      setConversation([...newConversation, errorMessage]);
+      
+      let errorMessage = "Sorry, I encountered an error. Please try again.";
+      if (error instanceof Error) {
+        if (error.message.includes("400")) {
+          errorMessage = "Invalid request format. Please try rephrasing your message.";
+        } else if (error.message.includes("401")) {
+          errorMessage = "Authentication error. Please check your API access.";
+        } else if (error.message.includes("429")) {
+          errorMessage = "Rate limit exceeded. Please wait a moment before trying again.";
+        }
+      }
+      
+      const errorResponse = { role: "assistant", content: errorMessage };
+      setConversation([...newConversation, errorResponse]);
     } finally {
       setIsLoading(false);
       setIsSearching(false);
     }
-  }, [message, isLoading, isDbInitialized, conversation, currentConversationId, webSearchEnabled, thinkingEnabled, extractSearchTerms, performWebSearchWithLinks]);
+  }, [message, isLoading, isDbInitialized, conversation, currentConversationId, webSearchEnabled, extractSearchTerms, performWebSearchWithLinks]);
 
   const handleKeyPress = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -461,7 +512,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                       <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold">Conversation Summary</h2>
                         <Button 
-                          className="bg-neutral-600 hover:bg-neutral-800"
+                          className="bg-neutral-700 hover:bg-neutral-600"
                           onClick={generateSummary}
                           disabled={generatingSummary || !currentConversation}
                           size="sm"
@@ -525,7 +576,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                         ))}
                         {(isLoading || (isSearching && webSearchEnabled)) && (
                           <div className="flex justify-start">
-                            <div className="bg-neutral-200 dark:bg-neutral-700 rounded-lg p-3">
+                            <div className="bg-neutral-200 dark:bg-neutral-800 rounded-lg p-3">
                               <div className="text-sm font-medium mb-1">AI</div>
                               <div className="text-neutral-500">
                                 {isSearching && webSearchEnabled ? "Searching web for current information..." : 
@@ -541,8 +592,8 @@ Based on the above web search results, please provide a comprehensive answer tha
                         )}
                       </div>
                     </div>
-                    <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-700 bg-background">
-                      <div className="p-3 flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-700">
+                    <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-600 bg-background">
+                      <div className="p-3 flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-600">
                         <Button
                           variant={webSearchEnabled ? "default" : "outline"}
                           size="sm"
@@ -581,7 +632,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyDown={handleKeyPress}
                             placeholder="Ask anything... (Ctrl+Enter to send)"
-                            className="flex-1 min-h-[40px] max-h-[120px] resize-none bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            className="flex-1 min-h-[40px] max-h-[120px] resize-none bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                             disabled={isLoading}
                           />
                           <button
@@ -600,7 +651,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                     </div>
                   </div>
                   {webSearchEnabled && searchResults.length > 0 && (
-                    <div className="w-80 border-l border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
+                    <div className="w-80 border-l border-neutral-200 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800 overflow-hidden">
                       <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
                         <h3 className="text-sm font-semibold flex items-center gap-2">
                           <Globe className="w-4 h-4" />
@@ -609,7 +660,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                       </div>
                       <div className="overflow-y-auto h-full p-4 space-y-3">
                         {searchResults.map((result, index) => (
-                          <div key={index} className="bg-white dark:bg-neutral-800 rounded-lg p-3 border">
+                          <div key={index} className="bg-white dark:bg-neutral-700 rounded-lg p-3 border">
                             <h4 className="text-sm font-medium mb-2">{result.term}</h4>
                             <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2 line-clamp-3">
                               {result.content}

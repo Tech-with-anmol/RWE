@@ -21,7 +21,14 @@
       "allow": [
         { "url": "https://api.duckduckgo.com/*" },
         { "url": "https://duckduckgo.com/*" },
-        { "url": "https://ai.hackclub.com/*" }
+        { "url": "https://ai.hackclub.com/*" },
+        { "url": "https://en.wikipedia.org/*" },
+        { "url": "https://feeds.bbci.co.uk/*" },
+        { "url": "https://rss.cnn.com/*" },
+        { "url": "https://feeds.npr.org/*" },
+        { "url": "https://www.bbc.com/*" },
+        { "url": "https://www.cnn.com/*" },
+        { "url": "https://www.npr.org/*" }
       ]
     }
 
