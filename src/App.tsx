@@ -14,6 +14,7 @@ import { SearchDialog } from "./components/search-dialog";
 import { OptimizedMarkdown } from "./components/optimized-markdown";
 import { MindMap } from "./components/mind-map";
 import { ToggleGroup, ToggleGroupItem } from "./components/ui/toggle-group";
+import { ModeToggle } from "./components/mode-toggle";
 import { 
   initDatabase, 
   createConversation, 
@@ -51,6 +52,7 @@ function App() {
   const [webSearchEnabled, setWebSearchEnabled] = React.useState(false);
   const [thinkingEnabled, setThinkingEnabled] = React.useState(false);
   const [notesViewMode, setNotesViewMode] = React.useState<'edit' | 'split' | 'preview'>('split');
+  const [summaryUpdate, setSummaryUpdate] = React.useState(0);
 
   React.useEffect(() => {
     if (chatScrollRef.current && conversation.length > 0) {
@@ -141,6 +143,7 @@ function App() {
       setConversation([]);
       setSearchResults([]);
       clearSearchCache(); 
+      setSummaryUpdate(0);
       
       const [messages, conv] = await Promise.all([
         getMessages(conversationId),
@@ -313,10 +316,12 @@ Provide detailed analysis and insights about this topic.`;
       
       if (currentConversationId) {
         await updateConversationSummary(currentConversationId, summary);
+        const updatedConv = { ...currentConversation, summary };
+        setCurrentConversation(updatedConv);
+        updateConversationCache(updatedConv);
+        invalidateConversationCache();
+        setSummaryUpdate(prev => prev + 1);
       }
-      const updatedConv = { ...currentConversation, summary };
-      setCurrentConversation(updatedConv);
-      updateConversationCache(updatedConv);
     } catch (error) {
       
     } finally {
@@ -547,9 +552,12 @@ Based on the above web search results, please provide a comprehensive answer tha
                   <TabsTrigger value="ai">AI</TabsTrigger>
                   <TabsTrigger value="graph">Mind Map</TabsTrigger>
                 </TabsList>
-                <Button variant="outline" size="sm" className="ml-auto" onClick={() => setIsTopicDialogOpen(true)}>
-                  <MessageSquarePlus/> New Topic
-                </Button>
+                <div className="ml-auto flex items-center gap-2">
+                  <ModeToggle />
+                  <Button variant="outline" size="sm" onClick={() => setIsTopicDialogOpen(true)}>
+                    <MessageSquarePlus/> New Topic
+                  </Button>
+                </div>
               </div>
               <TabsContent value="notes" className="flex-1 overflow-hidden p-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
                 <div className="border-b border-neutral-200 dark:border-neutral-700 p-2 flex items-center justify-end">
@@ -602,7 +610,7 @@ Based on the above web search results, please provide a comprehensive answer tha
                   )}
                 </div>
               </TabsContent>
-              <TabsContent value="summary" className="flex-1 overflow-hidden p-4 m-0">
+              <TabsContent value="summary" className="flex-1 overflow-hidden p-4 m-0" key={`summary-${currentConversationId}-${summaryUpdate}`}>
                 <div className="h-full overflow-y-auto">
                   {currentConversationId && currentConversation ? (
                     <div className="space-y-4">
@@ -623,8 +631,6 @@ Based on the above web search results, please provide a comprehensive answer tha
                       <div className="border rounded-lg p-4">
                         {generatingSummary ? (
                           <div className="text-center text-muted-foreground space-y-2">
-                            <div>Analyzing conversation...</div>
-                            <div className="text-sm">Searching web for relevant information...</div>
                             <div className="text-sm">Generating comprehensive summary...</div>
                           </div>
                         ) : currentConversation.summary ? (

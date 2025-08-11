@@ -9,7 +9,7 @@ export interface SearchResult {
     created_at: string;
 }
 
-export async function searchContent(query: string, searchNotes?: boolean): Promise<SearchResult[]> {
+export async function searchContent(query: string): Promise<SearchResult[]> {
     const { invoke } = await import("@tauri-apps/api/core");
-    return await invoke("search_content", { query, search_notes: searchNotes });
+    return await invoke("search_content", { query });
 }

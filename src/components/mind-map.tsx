@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Plus, Square, Circle, Diamond, Trash2, Link } from 'lucide-react';
 import { saveMindMapData, getMindMapData } from '../services/database';
+import { useAlert } from './alert-dialog';
 
 interface Node {
   id: string;
@@ -151,6 +152,7 @@ export function MindMap({ currentConversationId }: { currentConversationId: numb
   const [mapTitle, setMapTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const { showAlert, AlertComponent } = useAlert();
 
   const theme = THEMES[currentTheme];
 
@@ -158,12 +160,20 @@ export function MindMap({ currentConversationId }: { currentConversationId: numb
 
   const saveMindMapToDb = useCallback(async () => {
     if (!mapTitle.trim()) {
-      alert('Please enter a title for your mind map');
+      showAlert({
+        title: "Missing Title",
+        description: "Please enter a title for your mind map",
+        confirmText: "OK"
+      });
       return;
     }
     
     if (!currentConversationId) {
-      alert('No active conversation. Please select or create a conversation first.');
+      showAlert({
+        title: "No Conversation",
+        description: "No active conversation. Please select or create a conversation first.",
+        confirmText: "OK"
+      });
       return;
     }
     
@@ -176,13 +186,21 @@ export function MindMap({ currentConversationId }: { currentConversationId: numb
         JSON.stringify(connections), 
         currentTheme
       );
-      alert('Mind map saved successfully!');
+      showAlert({
+        title: "Success",
+        description: "Mind map saved successfully!",
+        confirmText: "OK"
+      });
     } catch (error) {
-      alert('Failed to save mind map');
+      showAlert({
+        title: "Error",
+        description: "Failed to save mind map",
+        confirmText: "OK"
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [mapTitle, nodes, connections, currentTheme, currentConversationId]);
+  }, [mapTitle, nodes, connections, currentTheme, currentConversationId, showAlert]);
 
   useEffect(() => {
     const loadMindMapFromDb = async () => {
@@ -594,6 +612,7 @@ export function MindMap({ currentConversationId }: { currentConversationId: numb
           )}
         </div>
       </div>
+      <AlertComponent />
     </div>
   );
 }

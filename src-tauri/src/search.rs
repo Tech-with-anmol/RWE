@@ -20,7 +20,6 @@ type DbConnection = Mutex<Connection>;
 #[command]
 pub async fn search_content(
     query: String,
-    search_notes: Option<bool>,
     db: State<'_, DbConnection>,
 ) -> Result<Vec<SearchResult>, String> {
     if query.trim().is_empty() {
@@ -71,41 +70,39 @@ pub async fn search_content(
         results.push(result.map_err(|e| format!("Row error: {}", e))?);
     }
     
-    if search_notes.unwrap_or(false) {
-        let mut stmt = conn.prepare("
-            SELECT 
-                id,
-                id as conversation_id,
-                name as conversation_name,
-                COALESCE(summary, '') as content,
-                created_at
-            FROM conversations
-            WHERE (LOWER(name) LIKE ?1 OR LOWER(summary) LIKE ?1 OR LOWER(notes) LIKE ?1)
-                AND (summary IS NOT NULL OR notes IS NOT NULL)
-            ORDER BY created_at DESC
-            LIMIT 30
-        ").map_err(|e| format!("Prepare conversations error: {}", e))?;
+    let mut stmt = conn.prepare("
+        SELECT 
+            id,
+            id as conversation_id,
+            name as conversation_name,
+            COALESCE(summary, '') as content,
+            created_at
+        FROM conversations
+        WHERE (LOWER(name) LIKE ?1 OR LOWER(summary) LIKE ?1)
+            AND (summary IS NOT NULL OR summary != '')
+        ORDER BY created_at DESC
+        LIMIT 30
+    ").map_err(|e| format!("Prepare conversations error: {}", e))?;
+    
+    let conv_iter = stmt.query_map([&search_pattern], |row| {
+        let content: String = row.get(3)?;
+        let snippet = create_snippet(&content, &query_terms, 200);
+        let relevance_score = calculate_relevance_score(&content, &query_terms);
         
-        let conv_iter = stmt.query_map([&search_pattern], |row| {
-            let content: String = row.get(3)?;
-            let snippet = create_snippet(&content, &query_terms, 200);
-            let relevance_score = calculate_relevance_score(&content, &query_terms);
-            
-            Ok(SearchResult {
-                id: row.get(0)?,
-                conversation_id: row.get(1)?,
-                conversation_name: row.get(2)?,
-                content_type: "conversation".to_string(),
-                content,
-                snippet,
-                relevance_score,
-                created_at: row.get(4)?,
-            })
-        }).map_err(|e| format!("Query conversations error: {}", e))?;
-        
-        for result in conv_iter {
-            results.push(result.map_err(|e| format!("Row error: {}", e))?);
-        }
+        Ok(SearchResult {
+            id: row.get(0)?,
+            conversation_id: row.get(1)?,
+            conversation_name: row.get(2)?,
+            content_type: "conversation".to_string(),
+            content,
+            snippet,
+            relevance_score,
+            created_at: row.get(4)?,
+        })
+    }).map_err(|e| format!("Query conversations error: {}", e))?;
+    
+    for result in conv_iter {
+        results.push(result.map_err(|e| format!("Row error: {}", e))?);
     }
     
     results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));

@@ -20,6 +20,7 @@ import { MessageSquare, Home, Search, Settings, HelpCircle, MoreHorizontal, Hand
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteConversation, type Conversation } from "../services/database"
 import { getConversations, invalidateConversationCache } from "../services/cache"
+import { useAlert } from "./alert-dialog"
 
 
 const items = [
@@ -66,6 +67,7 @@ interface AppSidebarProps {
 export function AppSidebar({ onConversationSelect, currentConversationId, refreshTrigger, isDbReady, onSearchOpen }: AppSidebarProps) {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [deletingIds, setDeletingIds] = React.useState<Set<number>>(new Set());
+  const { showAlert, AlertComponent } = useAlert();
 
   const loadConversations = React.useCallback(async () => {
     if (!isDbReady) return;
@@ -87,36 +89,45 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
   const handleDeleteConversation = React.useCallback(async (conversationId: number) => {
     if (!isDbReady || deletingIds.has(conversationId)) return;
     
-    if (!confirm("Delete this conversation permanently?")) return;
-    
-    setDeletingIds(prev => new Set(prev).add(conversationId));
-    
-    try {
-      await deleteConversation(conversationId);
-      invalidateConversationCache();
-      
-      
-      setConversations(prev => {
-        const updated = prev.filter(conv => conv.id !== conversationId);
+    showAlert({
+      title: "Delete Conversation",
+      description: "Delete this conversation permanently?",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "destructive",
+      onConfirm: async () => {
+        setDeletingIds(prev => new Set(prev).add(conversationId));
         
-        
-        if (currentConversationId === conversationId) {
-          const nextConversation = updated[0];
-          onConversationSelect?.(nextConversation ? nextConversation.id : null);
+        try {
+          await deleteConversation(conversationId);
+          invalidateConversationCache();
+          
+          setConversations(prev => {
+            const updated = prev.filter(conv => conv.id !== conversationId);
+            
+            if (currentConversationId === conversationId) {
+              const nextConversation = updated[0];
+              onConversationSelect?.(nextConversation ? nextConversation.id : null);
+            }
+            
+            return updated;
+          });
+        } catch (error) {
+          showAlert({
+            title: "Error",
+            description: "Failed to delete conversation",
+            confirmText: "OK"
+          });
+        } finally {
+          setDeletingIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(conversationId);
+            return newSet;
+          });
         }
-        
-        return updated;
-      });
-    } catch (error) {
-      alert("Failed to delete conversation");
-    } finally {
-      setDeletingIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(conversationId);
-        return newSet;
-      });
-    }
-  }, [isDbReady, deletingIds, currentConversationId, onConversationSelect, conversations]);
+      }
+    });
+  }, [isDbReady, deletingIds, currentConversationId, onConversationSelect, showAlert]);
   return (
     <Sidebar>
       <SidebarContent>
@@ -219,6 +230,7 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <AlertComponent />
     </Sidebar>
   )
 }
