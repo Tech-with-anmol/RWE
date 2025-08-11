@@ -107,7 +107,10 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
             
             if (currentConversationId === conversationId) {
               const nextConversation = updated[0];
-              onConversationSelect?.(nextConversation ? nextConversation.id : null);
+              
+              setTimeout(() => {
+                onConversationSelect?.(nextConversation ? nextConversation.id : null);
+              }, 0);
             }
             
             return updated;
