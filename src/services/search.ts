@@ -1,32 +1,30 @@
 import { fetch } from '@tauri-apps/plugin-http';
 
-export interface SearchResult {
+export interface WebSearchResult {
   term: string;
   content: string;
   url?: string;
   source: string;
 }
 
-export async function performWebSearch(searchTerms: string[]): Promise<SearchResult[]> {
-  const results: SearchResult[] = [];
+export async function performWebSearch(searchTerms: string[]): Promise<WebSearchResult[]> {
+  const results: WebSearchResult[] = [];
   
   for (const term of searchTerms.slice(0, 3)) {
     try {
-      console.log(`Searching fresh for: "${term}"`);
       const searchResult = await searchWithDuckDuckGo(term);
       if (searchResult) {
         results.push(searchResult);
-        console.log(`Found result for: "${term}" - ${searchResult.source}`);
       }
     } catch (error) {
-      console.warn(`Search failed for term: ${term}`, error);
+      console.error(`Error searching for term "${term}":`, error);
     }
   }
   
   return results;
 }
 
-async function searchWithDuckDuckGo(term: string): Promise<SearchResult | null> {
+async function searchWithDuckDuckGo(term: string): Promise<WebSearchResult | null> {
   try {
   
     const ddgResult = await tryDuckDuckGoSearch(term);
@@ -48,15 +46,13 @@ async function searchWithDuckDuckGo(term: string): Promise<SearchResult | null> 
       source: 'Search Services'
     };
   } catch (error) {
-    console.error(`Search failed for: ${term}`, error);
     return null;
   }
 }
 
-async function tryDuckDuckGoSearch(term: string): Promise<SearchResult | null> {
+async function tryDuckDuckGoSearch(term: string): Promise<WebSearchResult | null> {
   try {
     const encodedTerm = encodeURIComponent(term);
-    console.log(`Trying DuckDuckGo for: "${term}"`);
     const response = await fetch(`https://api.duckduckgo.com/?q=${encodedTerm}&format=json&no_redirect=1&no_html=1&skip_disambig=1`, {
         method: 'GET',
     });
@@ -65,7 +61,6 @@ async function tryDuckDuckGoSearch(term: string): Promise<SearchResult | null> {
     const data = await response.json() as any;
     
     if (data.Abstract && data.Abstract.length > 0) {
-      console.log(`✓ DuckDuckGo Abstract found for "${term}"`);
       return {
         term,
         content: data.Abstract,
@@ -75,7 +70,6 @@ async function tryDuckDuckGoSearch(term: string): Promise<SearchResult | null> {
     }
     
     if (data.Definition && data.Definition.length > 0) {
-      console.log(`✓ DuckDuckGo Definition found for "${term}"`);
       return {
         term,
         content: data.Definition,
@@ -87,7 +81,6 @@ async function tryDuckDuckGoSearch(term: string): Promise<SearchResult | null> {
     if (data.RelatedTopics && data.RelatedTopics.length > 0) {
       for (const topic of data.RelatedTopics) {
         if (topic.Text && topic.Text.length > 50) {
-          console.log(`✓ DuckDuckGo RelatedTopic found for "${term}"`);
           return {
             term,
             content: topic.Text,
@@ -100,15 +93,13 @@ async function tryDuckDuckGoSearch(term: string): Promise<SearchResult | null> {
     
     return null;
   } catch (error) {
-    console.warn(`DuckDuckGo search failed:`, error);
     return null;
   }
 }
 
-async function tryWikipediaSearch(term: string): Promise<SearchResult | null> {
+async function tryWikipediaSearch(term: string): Promise<WebSearchResult | null> {
   try {
     const encodedTerm = encodeURIComponent(term);
-    console.log(`Trying Wikipedia for: "${term}"`);
     
   
     const searchResponse = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTerm}`, {
@@ -118,7 +109,6 @@ async function tryWikipediaSearch(term: string): Promise<SearchResult | null> {
     if (searchResponse.ok) {
       const data = await searchResponse.json() as any;
       if (data.extract && data.extract.length > 50) {
-        console.log(`✓ Wikipedia summary found for "${term}"`);
         return {
           term,
           content: data.extract,
@@ -130,12 +120,11 @@ async function tryWikipediaSearch(term: string): Promise<SearchResult | null> {
     
     return null;
   } catch (error) {
-    console.warn(`Wikipedia search failed:`, error);
     return null;
   }
 }
 
-async function tryNewsSearch(term: string): Promise<SearchResult | null> {
+async function tryNewsSearch(term: string): Promise<WebSearchResult | null> {
   try {
   
     const lowerTerm = term.toLowerCase();
@@ -152,8 +141,6 @@ async function tryNewsSearch(term: string): Promise<SearchResult | null> {
     const isNewsQuery = hasNewsKeyword || hasLatestNews || (hasGlobalKeyword && hasTimeKeyword);
     
     if (!isNewsQuery) return null;
-    
-    console.log(`Trying news search for: "${term}"`);
     
     
     const rssResponse = await fetch(`https://feeds.bbci.co.uk/news/rss.xml`, {
@@ -177,7 +164,6 @@ async function tryNewsSearch(term: string): Promise<SearchResult | null> {
         const newsTitle = titleMatches[1].replace(/<title><!\[CDATA\[/, '').replace(/\]\]><\/title>/, '');
         const newsDesc = descMatches[1].replace(/<description><!\[CDATA\[/, '').replace(/\]\]><\/description>/, '');
         
-        console.log(`✓ News content found for "${term}"`);
         return {
           term,
           content: `${newsTitle}\n\n${newsDesc}`,
@@ -189,11 +175,10 @@ async function tryNewsSearch(term: string): Promise<SearchResult | null> {
     
     return null;
   } catch (error) {
-    console.warn(`News search failed:`, error);
     return null;
   }
 }
 
 export function clearSearchCache(): void {
-  console.log('Search cache cleared');
+  
 }

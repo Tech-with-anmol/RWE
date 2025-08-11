@@ -1,6 +1,7 @@
 import "./App.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Textarea } from "./components/ui/textarea";
+import { Skeleton } from "./components/ui/skeleton";
 import * as React from "react";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar";
@@ -9,6 +10,7 @@ import 'highlight.js/styles/github-dark.css';
 import { Button } from "./components/ui/button";
 import { MessageSquarePlus, Globe, Search, Brain } from "lucide-react";
 import { TopicDialog } from "./components/topic-dialog";
+import { SearchDialog } from "./components/search-dialog";
 import { OptimizedMarkdown } from "./components/optimized-markdown";
 import { MindMap } from "./components/mind-map";
 import { ToggleGroup, ToggleGroupItem } from "./components/ui/toggle-group";
@@ -19,8 +21,8 @@ import {
   updateConversationNotes,
   updateConversationSummary,
   type Conversation
-} from "./components/load-data";
-import { performWebSearch, type SearchResult, clearSearchCache } from "./services/search";
+} from "./services/database";
+import { performWebSearch, clearSearchCache, type WebSearchResult } from "./services/search";
 import { 
   getConversation,
   getMessages,
@@ -37,13 +39,14 @@ function App() {
   const [conversation, setConversation] = React.useState<Array<{role: string, content: string}>>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isTopicDialogOpen, setIsTopicDialogOpen] = React.useState(false);
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = React.useState(false);
   const [currentConversationId, setCurrentConversationId] = React.useState<number | null>(null);
   const [notes, setNotes] = React.useState("");
   const [isDbInitialized, setIsDbInitialized] = React.useState(false);
   const [refreshSidebar, setRefreshSidebar] = React.useState(0);
   const [currentConversation, setCurrentConversation] = React.useState<Conversation | null>(null);
   const [generatingSummary, setGeneratingSummary] = React.useState(false);
-  const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = React.useState<WebSearchResult[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = React.useState(false);
   const [thinkingEnabled, setThinkingEnabled] = React.useState(false);
@@ -64,7 +67,6 @@ function App() {
         await initDatabase();
         setIsDbInitialized(true);
       } catch (error) {
-        console.error("Database initialization failed:", error);
         setTimeout(() => {
           initDb();
         }, 2000);
@@ -121,8 +123,8 @@ function App() {
     }
   }, [isDbInitialized]);
 
-  const loadConversationMessages = React.useCallback(async (conversationId: number) => {
-    if (!isDbInitialized) {
+  const loadConversationMessages = React.useCallback(async (conversationId: number | null) => {
+    if (!isDbInitialized || !conversationId) {
       return;
     }
     
@@ -237,7 +239,7 @@ function App() {
     return finalTerms.length > 0 ? finalTerms : [text.slice(0, 30)];
   }, []);
 
-  const performWebSearchWithLinks = React.useCallback(async (searchTerms: string[]): Promise<SearchResult[]> => {
+  const performWebSearchWithLinks = React.useCallback(async (searchTerms: string[]): Promise<WebSearchResult[]> => {
     try {
       return await performWebSearch(searchTerms);
     } catch (error) {
@@ -329,6 +331,10 @@ Provide detailed analysis and insights about this topic.`;
         e.preventDefault();
         setIsTopicDialogOpen(true);
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchDialogOpen(true);
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'B' && e.shiftKey) {
         e.preventDefault();
         setThinkingEnabled(!thinkingEnabled);
@@ -382,7 +388,7 @@ Provide detailed analysis and insights about this topic.`;
 
     try {
       let enhancedMessages = newConversation;
-      let webSearchResults: SearchResult[] = [];
+      let webSearchResults: WebSearchResult[] = [];
 
       if (webSearchEnabled) {
         setIsSearching(true);
@@ -488,7 +494,7 @@ Based on the above web search results, please provide a comprehensive answer tha
   React.useEffect(() => {
     return () => {
       if (currentConversationId && notes) {
-        updateConversationNotes(currentConversationId, notes).catch(console.error);
+        updateConversationNotes(currentConversationId, notes).catch(() => {});
       }
     };
   }, [currentConversationId, notes]);
@@ -511,9 +517,27 @@ Based on the above web search results, please provide a comprehensive answer tha
           currentConversationId={currentConversationId}
           refreshTrigger={refreshSidebar}
           isDbReady={isDbInitialized}
+          onSearchOpen={() => setIsSearchDialogOpen(true)}
         />
         <SidebarInset>
-          <div className="flex flex-col h-screen overflow-hidden">
+          {!isDbInitialized ? (
+            <div className="flex flex-col h-screen overflow-hidden">
+              <div className="h-12 border-b border-neutral-200 dark:border-neutral-700 flex items-center px-2 gap-4 shrink-0">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-8 w-24 ml-auto" />
+              </div>
+              <div className="flex-1 p-4 space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-4/5" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col h-screen overflow-hidden">
             <Tabs defaultValue="notes" className="flex flex-col h-full overflow-hidden">
               <div className="h-12 border-b border-neutral-200 dark:border-neutral-700 flex items-center px-2 gap-4 shrink-0">
                 <TabsList>
@@ -760,11 +784,17 @@ Based on the above web search results, please provide a comprehensive answer tha
               </TabsContent>
             </Tabs>
           </div>
+          )}
         </SidebarInset>
         <TopicDialog 
           open={isTopicDialogOpen} 
           onOpenChange={setIsTopicDialogOpen}
           onCreateConversation={createNewConversation}
+        />
+        <SearchDialog 
+          open={isSearchDialogOpen} 
+          onOpenChange={setIsSearchDialogOpen}
+          onResultSelect={loadConversationMessages}
         />
       </SidebarProvider>
     </ThemeProvider>

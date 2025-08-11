@@ -18,6 +18,12 @@ coverage/
 package-lock.json
 bun.lock
 public
+
+# Database files
+*.db
+rwe_data/
+main.db
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

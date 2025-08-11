@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Plus, Square, Circle, Diamond, Trash2, Link } from 'lucide-react';
-import { saveMindMap, getMindMap } from './load-data';
+import { saveMindMapData, getMindMapData } from '../services/database';
 
 interface Node {
   id: string;
@@ -169,7 +169,13 @@ export function MindMap({ currentConversationId }: { currentConversationId: numb
     
     setIsSaving(true);
     try {
-      await saveMindMap(currentConversationId, mapTitle.trim(), nodes, connections, currentTheme);
+      await saveMindMapData(
+        currentConversationId, 
+        mapTitle.trim(), 
+        JSON.stringify(nodes), 
+        JSON.stringify(connections), 
+        currentTheme
+      );
       alert('Mind map saved successfully!');
     } catch (error) {
       alert('Failed to save mind map');
@@ -189,7 +195,7 @@ export function MindMap({ currentConversationId }: { currentConversationId: numb
       }
       
       try {
-        const savedMindMap = await getMindMap(currentConversationId);
+        const savedMindMap = await getMindMapData(currentConversationId);
         if (savedMindMap) {
           setMapTitle(savedMindMap.title);
           setNodes(JSON.parse(savedMindMap.nodes));

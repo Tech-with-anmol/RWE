@@ -1,5 +1,4 @@
-import { HandHelpingIcon, HelpCircle, Home, Search, Settings, MoreHorizontal, MessageSquare } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import * as React from "react"
 import {
   Sidebar,
   SidebarContent,
@@ -11,9 +10,16 @@ import {
   SidebarMenuItem,
   SidebarMenuAction,
 } from "@/components/ui/sidebar"
-import { deleteConversation, type Conversation } from "./load-data"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MessageSquare, Home, Search, Settings, HelpCircle, MoreHorizontal, HandHelpingIcon } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { deleteConversation, type Conversation } from "../services/database"
 import { getConversations, invalidateConversationCache } from "../services/cache"
-import * as React from "react"
 
 
 const items = [
@@ -21,83 +27,96 @@ const items = [
     title: "Home",
     url: "#",
     icon: Home,
+    onClick: () => {},
   },
   {
     title: "Search",
     url: "#",
     icon: Search,
+    onClick: "search",
   },
   {
     title: "Settings",
     url: "#",
     icon: Settings,
+    onClick: () => {},
   },
   {
     title: "Help",
     url: "#",
-    icon: HandHelpingIcon, 
+    icon: HandHelpingIcon,
+    onClick: () => {},
   },
   {
     title: "About",
     url: "#",
     icon: HelpCircle,
+    onClick: () => {},
   },
 ]
 
 interface AppSidebarProps {
-  onConversationSelect?: (conversationId: number) => void;
+  onConversationSelect?: (conversationId: number | null) => void;
   currentConversationId?: number | null;
   refreshTrigger?: number;
   isDbReady?: boolean;
+  onSearchOpen?: () => void;
 }
 
-export function AppSidebar({ onConversationSelect, currentConversationId, refreshTrigger, isDbReady }: AppSidebarProps) {
+export function AppSidebar({ onConversationSelect, currentConversationId, refreshTrigger, isDbReady, onSearchOpen }: AppSidebarProps) {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [deletingIds, setDeletingIds] = React.useState<Set<number>>(new Set());
 
   const loadConversations = React.useCallback(async () => {
-    if (!isDbReady || isLoading) return;
+    if (!isDbReady) return;
     
-    setIsLoading(true);
     try {
       const convos = await getConversations();
       setConversations(convos);
     } catch (error) {
-      console.error("Failed to load conversations:", error);
       setConversations([]);
-    } finally {
-      setIsLoading(false);
     }
-  }, [isDbReady, isLoading]);
+  }, [isDbReady]);
 
   React.useEffect(() => {
-    if (isDbReady && !isLoading) {
+    if (isDbReady) {
       loadConversations();
     }
-  }, [refreshTrigger, isDbReady]);
-
-  React.useEffect(() => {
-    if (!isDbReady) return;
-    
-    const interval = setInterval(() => {
-      if (isDbReady && !isLoading) {
-        loadConversations();
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [isDbReady, isLoading]);
+  }, [refreshTrigger, isDbReady, loadConversations]);
 
   const handleDeleteConversation = React.useCallback(async (conversationId: number) => {
-    if (!isDbReady) return;
+    if (!isDbReady || deletingIds.has(conversationId)) return;
+    
+    if (!confirm("Delete this conversation permanently?")) return;
+    
+    setDeletingIds(prev => new Set(prev).add(conversationId));
     
     try {
       await deleteConversation(conversationId);
       invalidateConversationCache();
-      await loadConversations();
+      
+      
+      setConversations(prev => {
+        const updated = prev.filter(conv => conv.id !== conversationId);
+        
+        
+        if (currentConversationId === conversationId) {
+          const nextConversation = updated[0];
+          onConversationSelect?.(nextConversation ? nextConversation.id : null);
+        }
+        
+        return updated;
+      });
     } catch (error) {
-      console.error("Failed to delete conversation:", error);
+      alert("Failed to delete conversation");
+    } finally {
+      setDeletingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(conversationId);
+        return newSet;
+      });
     }
-  }, [loadConversations, isDbReady]);
+  }, [isDbReady, deletingIds, currentConversationId, onConversationSelect, conversations]);
   return (
     <Sidebar>
       <SidebarContent>
@@ -111,10 +130,19 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                    <button 
+                      onClick={() => {
+                        if (item.onClick === "search") {
+                          onSearchOpen?.()
+                        } else if (typeof item.onClick === "function") {
+                          item.onClick()
+                        }
+                      }}
+                      className="w-full"
+                    >
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </button>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -127,12 +155,16 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
           <SidebarGroupContent>
             <SidebarMenu>
               {!isDbReady ? (
-                <SidebarMenuItem>
-                  <div className="flex items-center gap-2 px-2 py-1 text-sm text-muted-foreground">
-                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                    Initializing database...
-                  </div>
-                </SidebarMenuItem>
+                <>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <SidebarMenuItem key={`skeleton-${index}`}>
+                      <div className="flex items-center gap-2 px-2 py-1">
+                        <Skeleton className="w-4 h-4" />
+                        <Skeleton className="h-4 flex-1" />
+                      </div>
+                    </SidebarMenuItem>
+                  ))}
+                </>
               ) : conversations.length === 0 ? (
                 <SidebarMenuItem>
                   <div className="px-2 py-1 text-sm text-muted-foreground">
@@ -167,8 +199,16 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
                         <DropdownMenuItem 
                           onClick={() => handleDeleteConversation(conversation.id)}
                           className="text-destructive"
+                          disabled={deletingIds.has(conversation.id)}
                         >
-                          <span>Delete</span>
+                          {deletingIds.has(conversation.id) ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                              <span>Deleting...</span>
+                            </div>
+                          ) : (
+                            <span>Delete</span>
+                          )}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

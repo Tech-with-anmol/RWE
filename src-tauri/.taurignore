@@ -1,0 +1,5 @@
+*.db
+main.db
+rwe_data/
+target/
+Cargo.lock

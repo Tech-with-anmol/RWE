@@ -4,7 +4,7 @@ import {
   getMessages as dbGetMessages,
   type Conversation,
   type Message
-} from '../components/load-data';
+} from './database';
 
 const conversationCache = new Map<number, Conversation>();
 const messageCache = new Map<number, Message[]>();
@@ -28,7 +28,6 @@ export async function getConversations(): Promise<Conversation[]> {
     
     return conversations;
   } catch (error) {
-    console.error("Cache: Failed to get conversations:", error);
     return conversationListCache.data || [];
   }
 }
@@ -46,7 +45,6 @@ export async function getConversation(id: number): Promise<Conversation | null> 
     
     return conversation;
   } catch (error) {
-    console.error("Cache: Failed to get conversation:", error);
     return null;
   }
 }
@@ -62,7 +60,6 @@ export async function getMessages(conversationId: number): Promise<Message[]> {
     
     return messages;
   } catch (error) {
-    console.error("Cache: Failed to get messages:", error);
     return [];
   }
 }
