@@ -1,9 +1,12 @@
 mod search;
 mod database;
+mod migrations;
+mod updater;
 
 use rusqlite::Connection;
 use std::sync::Mutex;
 use tauri::Manager;
+use migrations::MigrationRunner;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -23,46 +26,9 @@ fn create_database_connection() -> Result<Connection, rusqlite::Error> {
     
     let conn = Connection::open(db_path)?;
     
-    // Create tables
-    conn.execute("
-        CREATE TABLE IF NOT EXISTS conversations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            summary TEXT,
-            notes TEXT
-        )
-    ", [])?;
-    
-    conn.execute("
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id INTEGER NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            seq INTEGER NOT NULL,
-            FOREIGN KEY(conversation_id) REFERENCES conversations(id)
-        )
-    ", [])?;
-    
-    conn.execute("
-        CREATE TABLE IF NOT EXISTS mindmaps (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id INTEGER NOT NULL UNIQUE,
-            title TEXT NOT NULL,
-            nodes TEXT NOT NULL,
-            connections TEXT NOT NULL,
-            theme TEXT DEFAULT 'default',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(conversation_id) REFERENCES conversations(id)
-        )
-    ", [])?;
-    
-    // Create indexes for performance
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_seq ON messages(seq)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_mindmaps_conversation ON mindmaps(conversation_id)", [])?;
+    let migration_runner = MigrationRunner::new();
+    migration_runner.run_migrations(&conn)
+        .expect("Failed to run database migrations");
     
     Ok(conn)
 }
@@ -85,6 +51,8 @@ pub fn run() {
             database::init_database,
             database::create_conversation,
             database::get_conversations,
+            database::get_conversations_paginated,
+            database::get_conversations_count,
             database::get_conversation,
             database::delete_conversation,
             database::save_message,
@@ -92,7 +60,16 @@ pub fn run() {
             database::update_conversation_notes,
             database::update_conversation_summary,
             database::get_mindmap_data,
-            database::save_mindmap_data
+            database::save_mindmap_data,
+            database::get_conversation_analytics,
+            database::backup_database,
+            database::get_database_info,
+            updater::get_app_version,
+            updater::open_url,
+            updater::get_data_directory,
+            updater::export_user_data,
+            updater::import_user_data,
+            updater::prepare_for_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

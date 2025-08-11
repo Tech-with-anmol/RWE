@@ -16,11 +16,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MessageSquare, Home, Search, Settings, HelpCircle, MoreHorizontal, HandHelpingIcon } from "lucide-react"
+import { MessageSquare, Home, Search, Settings, MoreHorizontal, HandHelpingIcon, BarChart3 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { deleteConversation, type Conversation } from "../services/database"
+import { deleteConversation, type Conversation, getConversationsPaginated, getConversationsCount } from "../services/database"
 import { getConversations, invalidateConversationCache } from "../services/cache"
 import { useAlert } from "./alert-dialog"
+import { AnalysisDialog } from "./analysis-dialog"
+import { VirtualizedConversationList } from "./virtualized-conversation-list"
+import { SettingsDialog } from "./settings-dialog"
 
 
 const items = [
@@ -40,7 +43,7 @@ const items = [
     title: "Settings",
     url: "#",
     icon: Settings,
-    onClick: () => {},
+    onClick: "settings",
   },
   {
     title: "Help",
@@ -49,10 +52,10 @@ const items = [
     onClick: () => {},
   },
   {
-    title: "About",
+    title: "Analysis",
     url: "#",
-    icon: HelpCircle,
-    onClick: () => {},
+    icon: BarChart3,
+    onClick: "analysis",
   },
 ]
 
@@ -67,16 +70,31 @@ interface AppSidebarProps {
 export function AppSidebar({ onConversationSelect, currentConversationId, refreshTrigger, isDbReady, onSearchOpen }: AppSidebarProps) {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [deletingIds, setDeletingIds] = React.useState<Set<number>>(new Set());
+  const [analysisOpen, setAnalysisOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [useVirtualized, setUseVirtualized] = React.useState(false);
   const { showAlert, AlertComponent } = useAlert();
 
   const loadConversations = React.useCallback(async () => {
     if (!isDbReady) return;
     
     try {
-      const convos = await getConversations();
-      setConversations(convos);
+      const count = await getConversationsCount();
+      setTotalCount(count);
+      
+      if (count > 100) {
+        setUseVirtualized(true);
+        const convos = await getConversationsPaginated(100, 0);
+        setConversations(convos);
+      } else {
+        setUseVirtualized(false);
+        const convos = await getConversations();
+        setConversations(convos);
+      }
     } catch (error) {
       setConversations([]);
+      setTotalCount(0);
     }
   }, [isDbReady]);
 
@@ -148,6 +166,10 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
                       onClick={() => {
                         if (item.onClick === "search") {
                           onSearchOpen?.()
+                        } else if (item.onClick === "analysis") {
+                          setAnalysisOpen(true)
+                        } else if (item.onClick === "settings") {
+                          setSettingsOpen(true)
                         } else if (typeof item.onClick === "function") {
                           item.onClick()
                         }
@@ -165,7 +187,9 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
         </SidebarGroup>
         
         <SidebarGroup>
-          <SidebarGroupLabel>Conversations</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            Conversations {totalCount > 0 && `(${totalCount})`}
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {!isDbReady ? (
@@ -185,6 +209,14 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
                     No conversations yet. Create a new topic to get started.
                   </div>
                 </SidebarMenuItem>
+              ) : useVirtualized ? (
+                <VirtualizedConversationList
+                  conversations={conversations}
+                  currentConversationId={currentConversationId}
+                  onConversationSelect={onConversationSelect}
+                  onDeleteConversation={handleDeleteConversation}
+                  deletingIds={deletingIds}
+                />
               ) : (
                 conversations.map((conversation) => (
                   <SidebarMenuItem key={conversation.id}>
@@ -234,6 +266,8 @@ export function AppSidebar({ onConversationSelect, currentConversationId, refres
         </SidebarGroup>
       </SidebarContent>
       <AlertComponent />
+      <AnalysisDialog open={analysisOpen} onOpenChange={setAnalysisOpen} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Sidebar>
   )
 }

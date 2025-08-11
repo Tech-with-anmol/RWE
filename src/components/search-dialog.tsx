@@ -129,7 +129,7 @@ export function SearchDialog({ open, onOpenChange, onResultSelect }: SearchDialo
             )}
             
             {searchTime !== null && results.length > 0 && (
-              <div className="px-4 py-3 text-xs text-muted-foreground border-b bg-muted/30">
+              <div className="px-4 py-3 text-xs text-muted-foreground border-b bg-muted">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{results.length} result{results.length !== 1 ? 's' : ''}</span>
                   <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export function SearchDialog({ open, onOpenChange, onResultSelect }: SearchDialo
                       <div
                         key={`${result.content_type}-${result.id}`}
                         onClick={() => handleResultSelect(result)}
-                        className="flex items-start space-x-3 p-3 rounded-md hover:bg-accent cursor-pointer transition-colors border"
+                        className="flex items-start space-x-3 p-3 rounded-md hover:bg-accent cursor-pointer border"
                       >
                         <Icon className="h-4 w-4 mt-1 text-muted-foreground flex-shrink-0" />
                         <div className="flex-1 min-w-0 space-y-1">

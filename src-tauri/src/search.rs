@@ -33,53 +33,16 @@ pub async fn search_content(
     
     let mut results = Vec::new();
     
-    let mut stmt = conn.prepare("
-        SELECT 
-            m.id,
-            m.conversation_id,
-            c.name as conversation_name,
-            m.content,
-            m.role,
-            c.created_at
-        FROM messages m
-        JOIN conversations c ON m.conversation_id = c.id
-        WHERE LOWER(m.content) LIKE ?1
-        ORDER BY c.created_at DESC, m.seq ASC
-        LIMIT 50
-    ").map_err(|e| format!("Prepare messages error: {}", e))?;
-    
-    let message_iter = stmt.query_map([&search_pattern], |row| {
-        let content: String = row.get(3)?;
-        let role: String = row.get(4)?;
-        let snippet = create_snippet(&content, &query_terms, 200);
-        let relevance_score = calculate_relevance_score(&content, &query_terms);
-        
-        Ok(SearchResult {
-            id: row.get(0)?,
-            conversation_id: row.get(1)?,
-            conversation_name: row.get(2)?,
-            content_type: format!("message_{}", role),
-            content,
-            snippet,
-            relevance_score,
-            created_at: row.get(5)?,
-        })
-    }).map_err(|e| format!("Query messages error: {}", e))?;
-    
-    for result in message_iter {
-        results.push(result.map_err(|e| format!("Row error: {}", e))?);
-    }
-    
+
     let mut stmt = conn.prepare("
         SELECT 
             id,
             id as conversation_id,
             name as conversation_name,
-            COALESCE(summary, '') as content,
+            name as content,
             created_at
         FROM conversations
-        WHERE (LOWER(name) LIKE ?1 OR LOWER(summary) LIKE ?1)
-            AND (summary IS NOT NULL OR summary != '')
+        WHERE LOWER(name) LIKE ?1
         ORDER BY created_at DESC
         LIMIT 30
     ").map_err(|e| format!("Prepare conversations error: {}", e))?;

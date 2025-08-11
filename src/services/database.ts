@@ -39,6 +39,14 @@ export async function getConversations(): Promise<Conversation[]> {
     return await invoke("get_conversations");
 }
 
+export async function getConversationsPaginated(limit: number, offset: number): Promise<Conversation[]> {
+    return await invoke("get_conversations_paginated", { limit, offset });
+}
+
+export async function getConversationsCount(): Promise<number> {
+    return await invoke("get_conversations_count");
+}
+
 export async function getConversation(conversationId: number): Promise<Conversation | null> {
     return await invoke("get_conversation", { conversationId });
 }
@@ -75,4 +83,12 @@ export async function saveMindMapData(
     theme: string
 ): Promise<number> {
     return await invoke("save_mindmap_data", { conversationId, title, nodes, connections, theme });
+}
+
+export async function backupDatabase(): Promise<string> {
+    return await invoke("backup_database");
+}
+
+export async function getDatabaseInfo(): Promise<any> {
+    return await invoke("get_database_info");
 }
