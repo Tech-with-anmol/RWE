@@ -444,3 +444,36 @@ pub async fn get_database_info(db: State<'_, DbConnection>) -> Result<serde_json
         "app_version": env!("CARGO_PKG_VERSION")
     }))
 }
+
+#[command]
+pub async fn get_api_key(db: State<'_, DbConnection>) -> Result<Option<String>, String> {
+    let conn = db.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    match conn.query_row(
+        "SELECT value FROM user_preferences WHERE key = 'gemini_api_key'",
+        [],
+        |row| row.get::<_, Option<String>>(0)
+    ) {
+        Ok(value) => Ok(value),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(format!("Failed to get API key: {}", e)),
+    }
+}
+
+#[command]
+pub async fn set_api_key(db: State<'_, DbConnection>, api_key: String) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    conn.execute(
+        r#"
+        INSERT INTO user_preferences (key, value, updated_at) 
+        VALUES ('gemini_api_key', ?1, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET 
+            value = excluded.value,
+            updated_at = excluded.updated_at
+        "#,
+        [&api_key]
+    ).map_err(|e| format!("Failed to set API key: {}", e))?;
+    
+    Ok(())
+}

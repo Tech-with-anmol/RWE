@@ -64,6 +64,8 @@ pub fn run() {
             database::get_conversation_analytics,
             database::backup_database,
             database::get_database_info,
+            database::get_api_key,
+            database::set_api_key,
             updater::get_app_version,
             updater::open_url,
             updater::get_data_directory,

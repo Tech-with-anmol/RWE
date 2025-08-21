@@ -92,3 +92,11 @@ export async function backupDatabase(): Promise<string> {
 export async function getDatabaseInfo(): Promise<any> {
     return await invoke("get_database_info");
 }
+
+export async function getApiKey(): Promise<string | null> {
+    return await invoke("get_api_key");
+}
+
+export async function setApiKey(apiKey: string): Promise<void> {
+    return await invoke("set_api_key", { apiKey });
+}
