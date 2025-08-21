@@ -21,7 +21,7 @@ export async function checkForUpdates() {
     }
     
     const currentVersion = await invoke<string>('get_app_version')
-    const latestVersion = release.tag_name.replace('v', '')
+    const latestVersion = release.tag_name.replace('app-v', '')
     
     if (latestVersion !== currentVersion) {
       return {
